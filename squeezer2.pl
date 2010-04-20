@@ -10,7 +10,7 @@
 #                  pieces of his script to use. Any errors in this 
 #                  version are totally my mistake and should be reported 
 #                  to me. However I don't guarantee that it will work 
-#                  correctly, so if it is completely screwed up and crashes 
+#                  right, so if it is completely screwed up and crashes 
 #                  your computer or starts a global thermonuclear war, I
 #                  take no responsibility.
 #
@@ -48,6 +48,12 @@
 #                    know, I need to work on my commenting so let me know 
 #                    where I am sucking at it.
 #
+# 03/19/2003 08:47PM *** replacing the by_regex section with the stats 
+#                    from squij.  squij is kewlness!  written by Mark 
+#                    Nottingham, it shows awesome stats, and using 
+#                    that, now so does this script! 
+#                    You can find Mark at http://www.mnot.net/
+#
 #######################################################################
 use strict;
 use diagnostics;
@@ -69,11 +75,12 @@ use constant SHOW_DENIED_BY_CLIENT	=> 1; # my default is 1 or enabled
 use constant SHOW_SERVER_STATS	=> 1; # my default is 1 or enabled
 use constant SHOW_FETCH_STATS	=> 1; # my default is 1 or enabled
 # These are ones that I have disabled by default
-use constant SHOW_CLIENT_STATS	=> 1; # my default is 0 or disabled because there are too many clients usually and that makes the page very long
-use constant SHOW_WEB_SERVER_STATS	=> 1; # my default is 0 or disabled because there are too many URLs usually and that makes the page very long
-use constant SHOW_STATUS_STATS	=> 1; # my default is 0 or disabled because this information is shown with less detail in the FETCH_STATS
+use constant SHOW_CLIENT_STATS	=> 0; # my default is 0 or disabled because there are too many clients usually and that makes the page very long
+use constant SHOW_WEB_SERVER_STATS	=> 0; # my default is 0 or disabled because there are too many URLs usually and that makes the page very long
+use constant SHOW_STATUS_STATS	=> 0; # my default is 0 or disabled because this information is shown with less detail in the FETCH_STATS
 use constant SHOW_REGEX_STATS	=> 1; # my default is 0 or disabled because the regex is very slow, it makes the script run 10 times or so slower
-use constant SHOW_TYPE_STATS	=> 1; # my default is 0 or disabled because this makes the report very large with little good info unless you are changing your refresh_pattern's
+use constant SHOW_EXT_STATS	=> 0; # my default is 0 or disabled because the use of regexes here is very slow, it makes the script run lots slower
+use constant SHOW_TYPE_STATS	=> 0; # my default is 0 or disabled because this makes the report very large with little good info unless you are changing your refresh_pattern's
 
 # These are the colors for the table, I used the colors from the original script to keep the feel similar
 use constant COLOR_TABLE_COL_HEAD	=> '#bbbbee';
@@ -97,7 +104,8 @@ my %Stats_Types_Headers = (
 	'by_hit'	=> 'By cache result codes',
 	'by_hour'	=> 'By hours',
 	'by_size'	=> 'By size of request',
-	'by_regex'	=> 'Refresh pattern efficiency',
+	'by_regex'	=> 'Refresh pattern efficiency (Thanks to squij!)',
+	'by_ext'	=> 'By file extension or type of file',
 	'by_srv'	=> 'Sibling efficiency',
 	'Total'		=> 'Total Requests',
 	'All'		=> 'Output and it\'s interpretation',
@@ -106,6 +114,7 @@ my %Stats_Types_Headers = (
 	'denied_by_client'	=> 'Denied by Client IP',
 #	''	=> '',
 );
+
 
 # these are the descriptions for each section, they are printed out as an <h5> so many html tags will work strangely
 my %Stats_Types_Descriptions = (
@@ -143,7 +152,116 @@ This shows cache statistics by size of request in bytes.
 ),
 
 	'by_regex'	=> q(
-This shows how many requests were served for each refresh pattern. 
+<UL>
+<LI><I>REGEX</I> - the pattern. 'i' is appended if it is case-insensitive.
+<LI><I>CURRENT OPTIONS</I> - The options currently specified in squid.conf.
+<LI><I>AVE SVC TIME</I> - time \(in seconds\) that it takes to send these objects to the client, in seconds. This includes objects satisfied from the cache as well as from the network.
+<LI><I>RATE REQ/BYTE</I> - hit rate, in requests and bytes, for that object. The items with the most requests should most likely be at the top of the list of refresh_patterns.
+<LI><I>FRESH/STALE</I> - ratio of fresh hits vs. stale hits for the pattern.
+<LI><I>UNMOD/MOD</I> - ratio of stale hits that were unmodified on the origin server, against those that were modified.
+<LI><I>TOTAL REQ/BYTES</I> - total number of requests and bytes seen for the pattern.
+<LI><I>TOTAL Graph REQ/BYTES</I> - A graph of a percentage of the current items reqests/bytes to the total requests/bytes
+<LI>The last row is of overall statistics for each column, for all content.
+<LI><I>* note that byte hit rates are those sent to the client; client IMS hits may cause this to be inaccurate.</I>
+<LI><I>* if 0 is in either side of one of the ratios, it means that there was no traffic seen for that item.</I>
+</UL>
+
+So, how do you use this? <P>
+
+Hit rate and total hits are merely metrics for how much a pattern is used, 
+and how effectively the matching objects can be cached. They allow you to 
+determine what patterns are worth working with, and which ones may need to 
+be split into separate patterns.<P>
+
+Fresh/stale tells you how the refresh parameters are performing; a higher
+fresh ratio means that more requests are being satisfied directly from the
+cache.<P>
+
+Unmod/mod compares how many stale hits that were checked \(with an IMS\) on the
+origin server are modified. If there is a high ratio of unmodified stale hits,
+it may be good to raise your refresh thresholds. On the other hand, if there
+is a high number of modified hits, it indicates that your thresholds are too
+high, and are more likely to be modified when your cache still believes that
+they are fresh.<P>
+
+It is a good idea to aim to keep unmod/mod at 1:1 or with a slightly higher
+unmod number.<P>
+
+For example:
+<PRE>
+               regex      hit rate  fresh/stale  unmod/mod       total
+------------------------------------------------------------------------------
+             \.gif$       25% \( 14%\)     5:2     1:1       19357 \(     48709k\)
+             \.jpg$       16% \( 19%\)    15:2     3:1        1990 \(     24105k\)
+             \.htm$       29% \( 29%\)     1:1     3:4        1110 \(      9311k\)
+            \.html$       21% \( 24%\)     1:2     2:11       4099 \(     27138k\)
+             \.exe$        9% \( 12%\)     1:0     0:0          19 \(     42313k\)
+                \/$       48% \( 61%\)     2:15    1:5        3407 \(     35211k\)
+                  .        7% \(  2%\)     1:1     1:3        6049 \(    206117k\)
+              total       24% \( 14%\)     1:1     1:1       36877 \(    355795k\)
+</PRE>
+
+<UL>
+<LI><I>.gif</I> traffic has very good statistics; the hit rate, total traffic and fresh
+ratio are all high, and unmod/mod is 1:1, which is about where we want it.
+
+<LI><I>.jpg</I> traffic is also good, but could possibly benefit from even higher 
+refresh thresholds.
+
+<LI><I>.htm</I> and .html traffic is fresh fairly often, but is usually modified when
+it becomes stale; this indicates that we should consider scaling back those
+patterns.
+
+<LI>All cache hits to .exe objects were fresh.
+
+<LI>The default pattern \('.'\) is being used a fair amount; it may be worthwhile
+to try more precise patterns. 
+
+<LI>* The output of squij is still experimental, and unproven. Currently, UDP 
+\(inter-cache\) traffic is NOT included; only HTTP \(client\) traffic is measured.
+
+),
+	'by_ext'	=> q(
+
+I use this table to decide what refresh_patterns to use, and which order to put them.<P>
+
+The best way to show how it finds the different expressions, it to show you the matching it does.<P>
+
+<PRE>
+	# Decode the URL incase it is escaped
+	$new_url =~ s/%([a-fA-F0-9][a-fA-F0-9])/pack("C", hex($1))/eg; 
+	
+	my $ext;
+	
+	# Is it a query?  in otherwords does it contain a ?, an =, an &, an @ or a ;.
+	$ext = '_query' if $new_url =~ m#\?|\=|\&|\@|\;#o;
+	
+	# Here we do the important part and match the file extensions
+	($ext) = $new_url =~ m#/[^/]+(\.[^/]+)$#o unless $ext;
+	
+	# Is is just the domain, and no sub folders? cuz most sites make their main page fairly static to be easy on the web server.
+	$ext = '_base' if !$ext && $new_url =~ m#://[^/]+/?$#o;
+	
+	# Is it just a file with no extension? if so, it's prbly a directory
+	$ext = '_dir'  if !$ext && $new_url =~ m#/[^/.]*$#o;
+	
+	# does it have special port numbers?  (Should prbly save these to see which ones get used a lot.)
+	# These are only the special ports that didn't match the above statements.  
+	$ext = '_port' if !$ext && $new_url =~ m#:[\d]+#o;
+	
+	# If we don't find anything else out about it, just file it under unknown.  
+	$ext = '_unknown' unless $ext;
+	
+	# If it did find something, but it is just numbers, it is most likely bogus info, so group it all together.
+	$ext = '_number' if $ext =~ /^\.?\d+$/o;
+	
+	# If the URL isn't one of the special ones that we combine
+	unless ($ext =~ /^_/) {
+		# Then make an additional entry for the lowercase extension with a -i on the end so that we know if we should use case insensitive matches.
+		$ext = lc($ext) . " (-i)";
+	                        
+
+</PRE>	
 ),
 	
 	'by_srv'	=> q(
@@ -317,8 +435,15 @@ if ($log_specified) {
 # begin the output of the page
 print "<HTML><HEAD>";
 
+#
+#
 # Here we call the sub that parses the logs and returns the summary's
-my ($First_Time, $Last_Time, $Stats) = Read_Logs($conf_name, @logs);
+# 
+my ($First_Time, $Last_Time, $Stats, $Regexes) = Read_Logs($conf_name, @logs);
+#
+#
+
+
 
 # put this meta tag because it said to at www.squid-cache.org
 print "<meta name='robots' content='noindex,nofollow'>";
@@ -336,8 +461,14 @@ if ($Stats_Types_Descriptions{Description}) { # if there is a description, show 
 	print "<H5>", $Stats_Types_Descriptions{Description}, "</H5>\n";
 }
 
+#
+#
+#
 # This calls the reporting to show all the hard work we just did
-Report_Stats($First_Time, $Last_Time, $Stats);
+#
+Report_Stats($First_Time, $Last_Time, $Stats, $Regexes);
+#
+#
 
 # show the about screen
 about();
@@ -364,25 +495,28 @@ sub Read_Conf
 	my @regex;
 	my %servers;
 	
-	
 	open (CONF, $conf) or die "Could not open $conf!\n";
 	my $i = 0;
 	while (<CONF>) {
-		if (/^\s*refresh_pattern\s+/) { # Looking for refresh_patterns here
+		if (/^\s*refresh_pattern\s+/o) { # Looking for refresh_patterns here
 			if (/\s+\-i\s+/) {      # and deciding if they are case sensitive or not
 				my ($name, $nthg, $rx, $opts) = split (/\s+/,$_,4); 
 				$regex[$i]->{regex} = $rx;
 				$regex[$i]->{case} = 1;
 				$regex[$i]->{opts} = $opts;
+				$rx =~ s/#/\\#/;
+				$regex[$i]->{compiled} = eval "sub { m#$rx#oi }";
 			} else {
 				my ($name,  $rx, $opts) = split (/\s+/,$_,3); 
 				$regex[$i]->{regex} = $rx;
 				$regex[$i]->{case} = 0;
 				$regex[$i]->{opts} = $opts;
+				$rx =~ s/#/\\#/;
+				$regex[$i]->{compiled} = eval "sub { m#$rx#o }";
 			}
 			$i++;
 		}
-		if (/^\s*cache_peer\s|cache_host\s/) {
+		if (/^\s*cache_peer\s|cache_host\s/o) {
 			my ($keyword, $server, $rel, $http, $icp, $opt) = split (/\s+/);
 			$servers{relation}->{$server} = $rel;
 			$servers{http_port}->{$server} = $http;
@@ -414,14 +548,66 @@ sub Read_Logs # This is the loop that reads in all the stuff from the log files.
 	my $cached_hit = 'UDP_HIT|TCP_HIT|TCP_IMS_HIT|TCP_NEGATIVE_HIT|TCP_MEM_HIT|TCP_OFFLINE_HIT|UDP_HIT';
 	my $cached_status = 'TCP_REFRESH_HIT/200';
 
+
+	# These are special items from squij
+	# these lists define which tags are associated with the various 
+	# hit types. 	
+	my %Squij_Tags = (
+		fresh_tags	=> [
+			'TCP_HIT',
+			'TCP_MEM_HIT',
+			'TCP_IMS_HIT',
+			'TCP_IMS_MISS',
+			'TCP_NEGATIVE_HIT',
+			],
+			
+		stale_tags 	=> [
+			'TCP_REFRESH_HIT',
+			'TCP_REFRESH_MISS',
+			'TCP_REF_FAIL_HIT' 
+			],
+
+		refresh_tags 	=> [
+			'TCP_CLIENT_REFRESH', 
+			'TCP_CLIENT_REFRESH_MISS',	
+			],
+			
+		mod_tags 	=> [
+			'TCP_REFRESH_MISS'
+			],
+			
+		unmod_tags 	=> [
+			'TCP_REFRESH_HIT'
+			],
+
+		hit_tags 	=> [
+			'TCP_HIT',
+			'TCP_MEM_HIT',
+			'TCP_IMS_HIT',
+			'TCP_IMS_MISS',
+			'TCP_NEGATIVE_HIT',
+			'TCP_REFRESH_HIT',
+			'TCP_OFFLINE_HIT',
+			],
+			
+		miss_tags 	=> [
+			'TCP_MISS',
+			'TCP_REFRESH_MISS',
+			'TCP_SWAPFAIL_MISS',
+			#	'TCP_CLIENT_REFRESH_MISS',
+			],
+	);
+
+
 	foreach my $cur_log (@logs) {
 		open CURLOG, $cur_log or die "Couldn't open CURLOG, $cur_log: $!";
 		while (<CURLOG>) {
-			chomp;
 			#
 			# Do accounting of TCP requests only
 			#
 			next if (!/ TCP_/o);
+		
+			chomp; # remove the newline
 			
 			# Split line to useful stuff
 			my ($time, $elapsed, $remotehost, $status, $bytes, $method, $url, $rfc931, $peerstatus, $mime) = split (/\s+/);
@@ -431,7 +617,7 @@ sub Read_Logs # This is the loop that reads in all the stuff from the log files.
 			my ($hit, $code) = split (/\//, $status);
 			my ($fetch, $server) = split (/\//, $peerstatus);
 			my $cur_hour = (localtime($time))[2];
-			my ($web_server) = $url =~ m#://([^/]+)/#; 
+			my ($web_server) = $url =~ m#://([^/]+)/#o; 
 	
 			# Here the first and last timestamps in the log files get set
 			($first_time = $time) unless $first_time;
@@ -519,6 +705,76 @@ sub Read_Logs # This is the loop that reads in all the stuff from the log files.
                                         if ($stats{by_status}->{$status}->{largest_bytes} < $bytes);
                                 $stats{by_status}->{$status}->{largest_cached_bytes} = $cached_bytes
                                         if ($stats{by_status}->{$status}->{largest_cached_bytes} < $cached_bytes);
+                        }
+
+                        # Extension statistics
+                        if (SHOW_EXT_STATS && $url) {
+                        	$stats{by_ext}->{show_cached} = 1;
+                        	
+                        	my $new_url = $url; # Save the URL so we can modify it
+                        	# like we are modifying it to remove the % encoding
+				$new_url =~ s/%([a-fA-F0-9][a-fA-F0-9])/pack("C", hex($1))/eg; 
+				
+				my $ext;
+				
+				# Is it a query?  in otherwords does it have a ?, an =, an & or an @.
+				$ext = '_query' if $new_url =~ m#\?|\=|\&|\@|\;#o;
+				
+				# Here we do the important part and match the file extensions
+				($ext) = $new_url =~ m#/[^/]+(\.[^/]+)$#o unless $ext;
+				
+				# Is is just the domain, and no sub folders? cuz most sites make their main page fairly static to be easy on the web server.
+				$ext = '_base' if !$ext && $new_url =~ m#://[^/]+/?$#o;
+				
+				# Is it just a file with no extension? if so, it's prbly a directory
+				$ext = '_dir'  if !$ext && $new_url =~ m#/[^/.]*$#o;
+				
+				# does it have special port numbers?  (Should prbly save these to see which ones get used a lot.)
+				$ext = '_port' if !$ext && $new_url =~ m#:[\d]+#o;
+				
+				# If we don't find anything else out about it, just file it under unknown.  
+				$ext = '_unknown' unless $ext;
+
+				# If it did find something, but it is just numbers, it is most likely bogus info, so group it all together.
+				$ext = '_number' if $ext =~ /^\.?\d+$/o;
+	
+		
+				# Now that we have the extension we are going to use, put up stats for it.
+                                $stats{by_ext}->{$ext}->{largest_bytes} ||= 0;
+                                $stats{by_ext}->{$ext}->{largest_cached_bytes} ||= 0;
+
+                                $stats{by_ext}->{$ext}->{bytes}   += $bytes;
+                                $stats{by_ext}->{$ext}->{elapsed} += $elapsed;
+                                $stats{by_ext}->{$ext}->{req}++;
+				$stats{by_ext}->{$ext}->{cached_req} += $cached_req;
+				$stats{by_ext}->{$ext}->{cached_bytes} += $cached_bytes;
+				$stats{by_ext}->{$ext}->{cached_elapsed} += $cached_elapsed;
+                                $stats{by_ext}->{$ext}->{largest_bytes} = $bytes
+                                        if ($stats{by_ext}->{$ext}->{largest_bytes} < $bytes);
+                                $stats{by_ext}->{$ext}->{largest_cached_bytes} = $cached_bytes
+                                        if ($stats{by_ext}->{$ext}->{largest_cached_bytes} < $cached_bytes);
+		
+				# Now that we have the extension we are going to use, put up stats for it.
+				# If the URL isn't one of the special ones that we combine
+				unless ($ext =~ /^_/) {
+					# Then make an additional entry for the lowercase extension with a 
+					# -i on the end so that we know if we should use case insensitive matches.
+					$ext = lc($ext) . " (-i)";
+
+	                                $stats{by_ext}->{$ext}->{largest_bytes} ||= 0;
+        	                        $stats{by_ext}->{$ext}->{largest_cached_bytes} ||= 0;
+	
+                	                $stats{by_ext}->{$ext}->{bytes}   += $bytes;
+        	                        $stats{by_ext}->{$ext}->{elapsed} += $elapsed;
+                        	        $stats{by_ext}->{$ext}->{req}++;
+					$stats{by_ext}->{$ext}->{cached_req} += $cached_req;
+					$stats{by_ext}->{$ext}->{cached_bytes} += $cached_bytes;
+					$stats{by_ext}->{$ext}->{cached_elapsed} += $cached_elapsed;
+                               		$stats{by_ext}->{$ext}->{largest_bytes} = $bytes
+						if ($stats{by_ext}->{$ext}->{largest_bytes} < $bytes);
+					$stats{by_ext}->{$ext}->{largest_cached_bytes} = $cached_bytes
+						if ($stats{by_ext}->{$ext}->{largest_cached_bytes} < $cached_bytes);
+				}
                         }
 
 
@@ -645,7 +901,7 @@ sub Read_Logs # This is the loop that reads in all the stuff from the log files.
 			}
 
 			# Stats by Hour
-			if (SHOW_HOUR_STATS && $cur_hour) {
+			if (SHOW_HOUR_STATS && defined $cur_hour) {
 				$stats{by_hour}->{show_cached} = 1;
 
 				$stats{by_hour}->{$cur_hour}->{largest_bytes} ||= 0;
@@ -665,7 +921,7 @@ sub Read_Logs # This is the loop that reads in all the stuff from the log files.
 			}
 
 			# Stats of Denied by URL
-			if (SHOW_DENIED_BY_URL && ($hit =~ /DENIED/) && $url) {
+			if (SHOW_DENIED_BY_URL && ($hit =~ /DENIED/o) && $url) {
 				$stats{denied_by_url}->{$url}->{largest_bytes} ||= 0;
 				$stats{denied_by_url}->{$url}->{largest_cached_bytes} ||= 0;
 	
@@ -680,7 +936,7 @@ sub Read_Logs # This is the loop that reads in all the stuff from the log files.
 			}
 			
 			# Stats of Denied by Client 
-			if (SHOW_DENIED_BY_CLIENT && ($hit =~ /DENIED/) && $remotehost) {
+			if (SHOW_DENIED_BY_CLIENT && ($hit =~ /DENIED/o) && $remotehost) {
 				$stats{denied_by_client}->{$remotehost}->{largest_bytes} ||= 0;
 				$stats{denied_by_client}->{$remotehost}->{largest_cached_bytes} ||= 0;
 	
@@ -769,50 +1025,77 @@ sub Read_Logs # This is the loop that reads in all the stuff from the log files.
 
 			}
 			
-			# Regex statistics
-			if (SHOW_REGEX_STATS && $Regexes) {
-				$stats{by_regex}->{show_cached} = 1;
-				REGEX: foreach my $regex (@$Regexes) {
-					# I don't recall why I have to initilize all of these, but I do know it threw errors when I didn't.  Someday removing some of these lines will be possible
-					$stats{by_regex}->{$regex->{regex}}->{bytes} ||= 0;
-					$stats{by_regex}->{$regex->{regex}}->{elapsed} ||= 0;
-					$stats{by_regex}->{$regex->{regex}}->{cached_req} ||= 0;
-					$stats{by_regex}->{$regex->{regex}}->{cached_bytes} ||= 0;
-					$stats{by_regex}->{$regex->{regex}}->{cached_req} ||= 0;
-					$stats{by_regex}->{$regex->{regex}}->{cached_bytes} ||= 0;
-					$stats{by_regex}->{$regex->{regex}}->{cached_elapsed} ||= 0;
-					$stats{by_regex}->{$regex->{regex}}->{req} ||= 0;
-					$stats{by_regex}->{$regex->{regex}}->{opts} ||= $regex->{opts};
-					$stats{by_regex}->{$regex->{regex}}->{largest_bytes} ||= 0;
-					$stats{by_regex}->{$regex->{regex}}->{largest_cached_bytes} ||= 0;
+			#
+			# This is the old regex matcher that works with the default report.
+			#
+			## Regex statistics
+			#if (SHOW_REGEX_STATS && $Regexes && $url) {
+			#	my $cur_line_tmp = $_;
+			#	$_ = $url;
+			#	
+			#	$stats{by_regex}->{show_cached} = 1;
+			#	REGEX: foreach my $regex (@$Regexes) {
+			#		if (&{ $regex->{compiled} }) { # Uses the regex that was compiled when read in to make the matching faster.
+			#			$stats{by_regex}->{$regex->{regex}}->{opts} ||= $regex->{opts};
+			#			$stats{by_regex}->{$regex->{regex}}->{largest_bytes} ||= 0;
+			#			$stats{by_regex}->{$regex->{regex}}->{largest_cached_bytes} ||= 0;
+			#		
+			#			$stats{by_regex}->{$regex->{regex}}->{bytes} += $bytes;
+			#			$stats{by_regex}->{$regex->{regex}}->{elapsed} += $elapsed;
+			#			$stats{by_regex}->{$regex->{regex}}->{cached_req} += $cached_req;
+			#			$stats{by_regex}->{$regex->{regex}}->{cached_bytes} += $cached_bytes;
+			#			$stats{by_regex}->{$regex->{regex}}->{cached_elapsed} += $cached_elapsed;
+			#			$stats{by_regex}->{$regex->{regex}}->{req}++;
+			#			$stats{by_regex}->{$regex->{regex}}->{largest_bytes} = $bytes 
+			#				if ($stats{by_regex}->{$regex->{regex}}->{largest_bytes} < $bytes);
+			#			$stats{by_regex}->{$regex->{regex}}->{largest_cached_bytes} = $cached_bytes 
+			#				if ($stats{by_regex}->{$regex->{regex}}->{largest_cached_bytes} < $cached_bytes);
+			#
+			#			last REGEX;
+			#		}
+			#	}
+			#	$_ = $cur_line_tmp;
+			#}
+			#
+			
+				
+			# Regex statistics -- The new one that reports like squij!
+			if (SHOW_REGEX_STATS && $Regexes && $url && $hit) {
+				my $cur_line_tmp = $_;
+				$_ = $url;
+				
+				my $total = { 'regex', 'total' };
+				
+				REGEX: foreach my $regex ($total , @$Regexes) {
 					
-					if ($regex->{case} ? $url =~ /$regex->{regex}/ix : $url =~ /$regex->{regex}/x) {
-						$stats{by_regex}->{$regex->{regex}}->{bytes} += $bytes;
-						$stats{by_regex}->{$regex->{regex}}->{elapsed} += $elapsed;
-						$stats{by_regex}->{$regex->{regex}}->{cached_req} += $cached_req;
-						$stats{by_regex}->{$regex->{regex}}->{cached_bytes} += $cached_bytes;
-						$stats{by_regex}->{$regex->{regex}}->{cached_req} += $cached_req;
-						$stats{by_regex}->{$regex->{regex}}->{cached_bytes} += $cached_bytes;
-						$stats{by_regex}->{$regex->{regex}}->{cached_elapsed} += $cached_elapsed;
-						$stats{by_regex}->{$regex->{regex}}->{req}++;
-						$stats{by_regex}->{$regex->{regex}}->{largest_bytes} = $bytes 
-							if ($stats{by_regex}->{$regex->{regex}}->{largest_bytes} < $bytes);
-						$stats{by_regex}->{$regex->{regex}}->{largest_cached_bytes} = $cached_bytes 
-							if ($stats{by_regex}->{$regex->{regex}}->{largest_cached_bytes} < $cached_bytes);
-
-						last REGEX;
-
+					if ($regex->{regex} eq 'total' || &{ $regex->{compiled} }) { # Uses the regex that was compiled when read in to make the matching faster.
+						$stats{by_regex}->{$regex->{regex}}->{total}->{opts} ||= $regex->{opts};
+					
+						$stats{by_regex}->{$regex->{regex}}->{total}->{bytes} += $bytes;
+						$stats{by_regex}->{$regex->{regex}}->{total}->{elapsed} += $elapsed;
+						$stats{by_regex}->{$regex->{regex}}->{total}->{req}++;
+						
+						foreach my $tag_type (keys %Squij_Tags) {
+							if (grep /^$hit$/, @{ $Squij_Tags{$tag_type} }) {
+								$stats{by_regex}->{$regex->{regex}}->{$tag_type}->{bytes} += $bytes;
+								$stats{by_regex}->{$regex->{regex}}->{$tag_type}->{elapsed} += $elapsed;
+								$stats{by_regex}->{$regex->{regex}}->{$tag_type}->{req}++;
+							}
+						}
+						last REGEX unless $regex->{regex} eq 'total';
 					}
 				}
+				$_ = $cur_line_tmp;
 			}
 			
+				
 #
 # ATTENTION!!! Do not place anything for ALL lines below the next source line
 # it will reject anything DIRECT!!!
 # go next if it is fetched directly or from this cache
 #
 #			next if (m#DIRECT/# || m#TIMEOUT_DIRECT/# || m# - NONE/- #); 
-			next if (m#DIRECT/# || m#TIMEOUT_DIRECT/#); 
+			next if (m#DIRECT/#o || m#TIMEOUT_DIRECT/#o); 
 			
 			# Server Stats
 			if (SHOW_SERVER_STATS && $server) {
@@ -850,7 +1133,7 @@ sub Read_Logs # This is the loop that reads in all the stuff from the log files.
 		close CURLOG;
 	}
 	# return all the information we gathered.
-	return ($first_time, $last_time, \%stats);
+	return ($first_time, $last_time, \%stats, $Regexes);
 }
 
 
@@ -859,6 +1142,7 @@ sub Report_Stats
 	my $first_time = shift; # The first timestamp we saw from the logs
 	my $last_time = shift;  # The last timestamp that was in the logs
 	my $stats = shift;      # The hash reference that contains all the info that we gathered and are going to report on.
+	my $regexes = shift;	# The list of all regexes from the config file
 
 	# Making the total number of requests easier to get to with a shorter variable cuz it is used a lot
 	my $total = $stats->{Total}->{Total};
@@ -897,20 +1181,41 @@ sub Report_Stats
 			print "<H5>", $Stats_Types_Descriptions{$type}, "</H5>\n";
 		}
 
+		# Here we have special reports to do:
+		if ($type eq 'by_regex') { # and for now, I have a special report that is modeled from squij
+			Show_By_Regex($stats->{$type}, $total, $regexes);
+			next;
+		}
+
+
+		
 		# Start the table
 		print "<TABLE TABLE_CELL_BORDER TABLE_CELLSPACING TABLE_CELLPADDING>\n";
 
 		# $i is used to repeat the headers every 25 or so rows and to choose what color each row should be
 		my $i = 0;
 		# This is each line in this type.  Someday the sorting will be moved out to a hash at the beginning so it can be set to sort per type, but for now, this works.
-		foreach my $item (sort { $a eq 'show_cached' || $b eq 'show_cached' ? # Is it the show_cached key?
-					         $a cmp $b :                          # if it is, just doesn't matter, if I could just skip that one that would be kewl
-						 ($a =~ /^\d+$/ && $b =~ /^\d+$/) ? # if not, then is the item a number?
-						 	($a <=> $b) :               # if so, sort it that way
-							($stats->{$type}->{$b}->{bytes} <=> $stats->{$type}->{$a}->{bytes}) # otherwise sort backwards by bytes
-				       } keys %{ $stats->{$type} } ) {
+		foreach my $item (sort {
+				if ($a eq 'show_cached' || $b eq 'show_cached') {
+					return ($a cmp $b); # if it is the special "show_cached" item, just return the easiest thing
+				} elsif ($type eq 'by_hour' || $type eq 'by_size') {
+					no warnings 'numeric';
+					return ($a <=> $b || $a cmp $b); # Sort numericly on $item
+				} elsif ($type eq 'by_ext') {
+					return ($stats->{$type}->{$b}->{req} <=> $stats->{$type}->{$a}->{req}); # sort backwards by number of reqs
+				} else {
+					return ($stats->{$type}->{$b}->{bytes} <=> $stats->{$type}->{$a}->{bytes}); # otherwise sort backwards by bytes
+				}
+			} keys %{ $stats->{$type} } ) {
 
 			next if $item eq 'show_cached'; # don't try to show the show_cached item
+
+			# If the type is by_ext and it is one of the case insensitive ones
+			if ($type eq 'by_ext' && $item =~ /^(.*) \(-i\)$/) {
+				# we go next, if the number of requests for the case insensitive ones is the same as the number of normal reqs.
+				# Yes, I know that this only works if the original request was in lowercase, but that is 99% of requests, so it is good enough.
+				next if ($stats->{$type}->{$1}->{req} && $stats->{$type}->{$item}->{req} == $stats->{$type}->{$1}->{req});
+			}
 
 			unless ($i % 25) {
 				# Show the title
@@ -1005,7 +1310,7 @@ sub Report_Stats
 						0);
 
 				# calculate cached_req_percent as percent of item_reqs
-				my $cached_percent_req = ($stats->{$type}->{$item}->{req} ? 
+				my $cached_percent_req = ( ($stats->{$type}->{$item}->{req} && $stats->{$type}->{$item}->{cached_req} )? 
 								100 * $stats->{$type}->{$item}->{cached_req} / $stats->{$type}->{$item}->{req} :
 								0
 							); 
@@ -1014,7 +1319,7 @@ sub Report_Stats
 				printf "\t<TD BGCOLOR='$row_bg_color' ALIGN=RIGHT>%2.2f\n", $cached_percent_req;
 
 				# graph of item_cached_bytes percent of item_bytes
-				print "\t<TD BGCOLOR='$row_bg_color' ALIGN=LEFT VALIGN=MIDDLE><FONT SIZE=-2>", ("|" x $cached_percent_req), "\n";
+				print "\t<TD BGCOLOR='$row_bg_color' ALIGN=LEFT VALIGN=MIDDLE><SMALL>", ("|" x $cached_percent_req), "</SMALL>\n";
 
 				# Row Header, again so it doesn't get lost
 				print "\t<TD BGCOLOR='" . COLOR_TABLE_ROW_HEAD . "'><I>$item_title</I>\n";
@@ -1026,14 +1331,14 @@ sub Report_Stats
 
 			# Requests per second
 			printf "\t<TD BGCOLOR='$row_bg_color' ALIGN=RIGHT>%2.2f\n", (
-				$stats->{$type}->{$item}->{elapsed} ? 
+				($stats->{$type}->{$item}->{elapsed} && $stats->{$type}->{$item}->{req}) ? 
 					($stats->{$type}->{$item}->{req} / ($stats->{$type}->{$item}->{elapsed} / 1000))  :
 					0
 				);
 
 			# calculate percentage of item_requests to total_requests
 			my $percent_req = (
-				$total->{req} ? 
+				($total->{req} && $stats->{$type}->{$item}->{req}) ? 
 					(100 * $stats->{$type}->{$item}->{req} / $total->{req})  :
 					0
 				);
@@ -1042,7 +1347,7 @@ sub Report_Stats
 			printf "\t<TD BGCOLOR='$row_bg_color' ALIGN=RIGHT>%2.2f\n", $percent_req;
 
 			# graph of percentage of item_requests
-			print "\t<TD BGCOLOR='$row_bg_color' ALIGN=LEFT VALIGN=MIDDLE><FONT SIZE=-2>", ("|" x $percent_req), "\n";
+			print "\t<TD BGCOLOR='$row_bg_color' ALIGN=LEFT VALIGN=MIDDLE><SMALL>", ("|" x $percent_req), "</SMALL>\n";
 
 			# Row Header, again so it doesn't get lost
 			print "\t<TD BGCOLOR='" . COLOR_TABLE_ROW_HEAD . "'><I>$item_title</I>\n";
@@ -1050,19 +1355,19 @@ sub Report_Stats
 			# cached_bytes - only show cache info if we say we have it
 			if ($stats->{$type}->{show_cached}) {
 				# bytes cached for this item
-				printf "\t<TD BGCOLOR='$row_bg_color' ALIGN=RIGHT>%s\n", Commify(sprintf "%5.2f", $stats->{$type}->{$item}->{cached_bytes} / 1024) || 0;
+				printf "\t<TD BGCOLOR='$row_bg_color' ALIGN=RIGHT>%s\n", Commify(sprintf "%5.2f", ($stats->{$type}->{$item}->{cached_bytes} ? $stats->{$type}->{$item}->{cached_bytes} : 0) / 1024);
 				
 				# cached bytes per second
 				printf "\t<TD BGCOLOR='$row_bg_color' ALIGN=RIGHT>%s\n", Commify(
 					sprintf "%5.2f", 
-						$stats->{$type}->{$item}->{cached_elapsed} ? 
+						($stats->{$type}->{$item}->{cached_elapsed} && $stats->{$type}->{$item}->{cached_bytes}) ? 
 						$stats->{$type}->{$item}->{cached_bytes} / ($stats->{$type}->{$item}->{cached_elapsed} / 1000) :
 						0);
 				
 				#printf "\t<TD BGCOLOR='$row_bg_color' ALIGN=RIGHT>%s\n", $stats->{$type}->{$item}->{cached_bytes};
 
 				# calculate cached_bytes_percent
-				my $cached_percent_bytes = ($stats->{$type}->{$item}->{bytes} ? 
+				my $cached_percent_bytes = ( ($stats->{$type}->{$item}->{bytes} &&  $stats->{$type}->{$item}->{cached_bytes}) ? 
 								100 * $stats->{$type}->{$item}->{cached_bytes} / $stats->{$type}->{$item}->{bytes} :
 								0
 						       ); 
@@ -1071,7 +1376,7 @@ sub Report_Stats
 				printf "\t<TD BGCOLOR='$row_bg_color' ALIGN=RIGHT>%2.2f\n", $cached_percent_bytes;
 
 				# graph of item_cached_bytes percent of item_bytes
-				print "\t<TD BGCOLOR='$row_bg_color' ALIGN=LEFT VALIGN=MIDDLE><FONT SIZE=-2>", ("|" x $cached_percent_bytes), "\n";
+				print "\t<TD BGCOLOR='$row_bg_color' ALIGN=LEFT VALIGN=MIDDLE><SMALL>", ("|" x $cached_percent_bytes), "</SMALL>\n";
 				
 				# Row Header
 				print "\t<TD BGCOLOR='" . COLOR_TABLE_ROW_HEAD . "'><I>$item_title</I>\n";
@@ -1099,7 +1404,7 @@ sub Report_Stats
 			printf "\t<TD BGCOLOR='$row_bg_color' ALIGN=RIGHT>%2.2f\n", $percent_bytes;
 			
 			# graph of percentage of item_bytes
-			print "\t<TD BGCOLOR='$row_bg_color' ALIGN=LEFT VALIGN=MIDDLE><FONT SIZE=-2>", ("|" x $percent_bytes), "\n";
+			print "\t<TD BGCOLOR='$row_bg_color' ALIGN=LEFT VALIGN=MIDDLE><SMALL>", ("|" x $percent_bytes), "</SMALL>\n";
 
 			# Row Header, again so it doesn't get lost
 			print "\t<TD BGCOLOR='" . COLOR_TABLE_ROW_HEAD . "'><I>$item_title</I>\n";
@@ -1118,7 +1423,7 @@ sub Report_Stats
 			printf "\t<TD BGCOLOR='$row_bg_color' ALIGN=RIGHT>%2.2f\n", $percent_elapsed;
 
 			# graph of item_elapsed
-			print "\t<TD BGCOLOR='$row_bg_color' ALIGN=LEFT VALIGN=MIDDLE><FONT SIZE=-2>", ("|" x $percent_elapsed), "\n";
+			print "\t<TD BGCOLOR='$row_bg_color' ALIGN=LEFT VALIGN=MIDDLE><SMALL>", ("|" x $percent_elapsed), "</SMALL>\n";
 
 			# Row Header, again so it doesn't get lost
 			print "\t<TD BGCOLOR='" . COLOR_TABLE_ROW_HEAD . "'><I>$item_title</I>\n";
@@ -1147,6 +1452,190 @@ sub Report_Stats
 }
 
 
+
+sub Show_By_Regex
+{
+	# 
+	# This is a special report that I modeled from squij.  
+	# http://www.mnot.net/squij/
+	# 
+	#
+	my $regex_stats = shift;
+	# $regex_stats is really
+	# $regex_stats->{$regex}->{$tag}->{$item}
+	# where
+	# 	$regex is the regular expression that the stats are for
+	# 	$tag is the type of match, which can be total, fresh_tags, 
+	# 		stale_tags, refresh_tags, mod_tags, unmod_tags, 
+	# 		hit_tags or miss_tags. These are all from Squij.
+	# 	$item is the item, these can be req, bytes or elapsed
+	#
+
+	my $totals = shift;
+	# $totals is really the total of all requests from the log
+	# $totals->{bytes}, $totals->{req} and $totals->{elapsed}.
+
+	my $regexes = shift;	
+	# $regexes is really a full list of all regexes from the config file
+	# 	$regexes-{regex} which is the text of the regex
+	# 	$regexes-{case} which is a 1 if the regex is case insensitive, or a 0 if it isn't
+	# 	$regexes-{opts} which is the text of the options that are applied to this regex
+	# 	$regexes-{compiled} which is a ref for the precompiled regex that makes matching faster.
+
+	my $i = 0;
+	print "<TABLE TABLE_CELL_BORDER TABLE_CELLSPACING TABLE_CELLPADDING>\n";
+	my $total_hashref = { 'regex', 'total', 'case', 0, 'opts', ''};
+	foreach my $regex (@$regexes, $total_hashref) {
+
+		# Choose which color to make the row
+		my $row_bg_color = $i % 2 ? COLOR_TABLE_ROW_EVEN : COLOR_TABLE_ROW_ODD;
+
+		my $item = $regex->{regex};
+		my $case = $regex->{case};
+		my $opts = $regex->{opts};
+		
+		my $cur_stats = defined $regex_stats->{$item} ? $regex_stats->{$item} : 0; # Make the current stats easier to get to
+
+		$row_bg_color = COLOR_TABLE_CELL_SPECIAL if ($item eq 'total');
+
+
+		unless ($i % 25) {
+			print "<TR><TH>&nbsp;\n";
+			print "    <TH>&nbsp;\n";
+			print "    <TH BGCOLOR='" . COLOR_TABLE_COL_HEAD . "' ALIGN='CENTER'><B>Current</B>\n";
+			print "    <TH BGCOLOR='" . COLOR_TABLE_COL_HEAD . "' ALIGN='CENTER'><B>Avg Svc</B>\n";
+			print "    <TH BGCOLOR='" . COLOR_TABLE_COL_HEAD . "' ALIGN='CENTER' COLSPAN=2><B>Rate</B>\n";
+			print "    <TH BGCOLOR='" . COLOR_TABLE_COL_HEAD . "' ALIGN='CENTER'><B>Fresh :</B>\n\n";
+			print "    <TH BGCOLOR='" . COLOR_TABLE_COL_HEAD . "' ALIGN='CENTER'><B>Unmod :</B>\n\n";
+			print "    <TH BGCOLOR='" . COLOR_TABLE_COL_HEAD . "' ALIGN='CENTER' COLSPAN=2><B>Total</B>\n\n";
+			print "    <TH BGCOLOR='" . COLOR_TABLE_COL_HEAD . "' ALIGN='CENTER' COLSPAN=2><B>Total Graph</B>\n\n";
+
+			print "<TR><TH BGCOLOR='" . COLOR_TABLE_COL_HEAD . "' ALIGN='CENTER'><B>Regex</B>\n";
+			print "    <TH BGCOLOR='" . COLOR_TABLE_COL_HEAD . "' ALIGN='CENTER'><SMALL>Case</SMALL>\n";
+			print "    <TH BGCOLOR='" . COLOR_TABLE_COL_HEAD . "' ALIGN='CENTER'><B>Options</B>\n";
+			print "    <TH BGCOLOR='" . COLOR_TABLE_COL_HEAD . "' ALIGN='CENTER'><B>Time</B>\n";
+			print "    <TH BGCOLOR='" . COLOR_TABLE_COL_HEAD . "' ALIGN='CENTER'><B>Reqs</B>\n";
+			print "    <TH BGCOLOR='" . COLOR_TABLE_COL_HEAD . "' ALIGN='CENTER'><B>Bytes</B>\n";
+			print "    <TH BGCOLOR='" . COLOR_TABLE_COL_HEAD . "' ALIGN='CENTER'><B>Stale</B>\n\n";
+			print "    <TH BGCOLOR='" . COLOR_TABLE_COL_HEAD . "' ALIGN='CENTER'><B>Modified</B>\n\n";
+			print "    <TH BGCOLOR='" . COLOR_TABLE_COL_HEAD . "' ALIGN='CENTER'><B>Reqs</B>\n\n";
+			print "    <TH BGCOLOR='" . COLOR_TABLE_COL_HEAD . "' ALIGN='CENTER'><B>Bytes</B>\n\n";
+			print "    <TH BGCOLOR='" . COLOR_TABLE_COL_HEAD . "' ALIGN='CENTER'><B>Reqs</B>\n\n";
+			print "    <TH BGCOLOR='" . COLOR_TABLE_COL_HEAD . "' ALIGN='CENTER'><B>Bytes</B>\n\n";
+		}
+		
+		# make the next row a different color
+		$i++;
+		
+		
+		# Start the row with the item we are on:
+		print "<TR><TD BGCOLOR='" . COLOR_TABLE_ROW_HEAD . "' ALIGN='RIGHT'><B>$item</B>\n";
+		print "    <TD BGCOLOR='" . COLOR_TABLE_ROW_HEAD . "' ALIGN='CENTER'><B>" . ($case ? "-i" : "&nbsp;") . "</B>\n";
+		print "    <TD BGCOLOR='" . COLOR_TABLE_ROW_HEAD . "' ALIGN='CENTER'><SMALL>$opts</SMALL>\n";
+		
+		# If there aren't any stats for the current regex, print a blank line and restart.
+		unless ($cur_stats) {
+			print "    <TD BGCOLOR='$row_bg_color' ALIGN='CENTER'>-\n" x 9;
+			next;
+		}
+
+
+		# Seconds per request,  AKA Avg Svc Time
+		printf "    <TD BGCOLOR='" . $row_bg_color . "' ALIGN='RIGHT'>%5.3f\n", 
+			(
+				(defined $cur_stats->{total}->{req}) ? 
+					($cur_stats->{total}->{elapsed} / 1000)
+						/ $cur_stats->{total}->{req} :
+					0
+			);
+
+		# cached requests as a percent of total requests
+		printf "    <TD BGCOLOR='" . $row_bg_color . "' ALIGN='RIGHT'>%5.2f%%\n",  
+			(
+				(defined $cur_stats->{total}->{req}) ? 
+					100 * (
+						defined $cur_stats->{hit_tags}->{req} ? 
+						$cur_stats->{hit_tags}->{req} :
+						0
+					) / $cur_stats->{total}->{req} : 
+					0
+			);
+
+		# cached bytes as a percent of total requests
+		printf "    <TD BGCOLOR='" . $row_bg_color . "' ALIGN='RIGHT'>%5.2f%%\n",  
+			(
+				($cur_stats->{total}->{bytes}) ? 
+					100 * (
+						defined $cur_stats->{hit_tags}->{bytes} ? 
+						$cur_stats->{hit_tags}->{bytes} : 
+						0
+					) / $cur_stats->{total}->{bytes} : 
+					0
+			);
+
+		# Fresh to stale ratio
+		print "    <TD BGCOLOR='" . $row_bg_color . "' ALIGN='CENTER'>" .
+		
+			Get_Ratio(
+				( 
+					(defined $cur_stats->{fresh_tags}->{req}) ? 
+					$cur_stats->{fresh_tags}->{req} : 
+					0
+				), (
+					(defined $cur_stats->{stale_tags}->{req}) ? 
+					$cur_stats->{stale_tags}->{req} : 
+					0
+				)
+			) . "\n";
+
+		# Unmodified to Modified ratio
+		print "    <TD BGCOLOR='" . $row_bg_color . "' ALIGN='CENTER'>" . 
+			
+			Get_Ratio(
+				( 
+					(defined $cur_stats->{unmod_tags}->{req}) ? 
+					$cur_stats->{unmod_tags}->{req} : 
+					0
+				), (
+					(defined $cur_stats->{mod_tags}->{req}) ? 
+					$cur_stats->{mod_tags}->{req} : 
+					0
+				)
+			) . "\n";
+
+		# Total Hits
+		print "    <TD BGCOLOR='" . $row_bg_color . "' ALIGN='RIGHT'>" . 
+			Commify(defined $cur_stats->{total}->{req} ? $cur_stats->{total}->{req} : 0) . "\n";
+
+		# Total Bytes
+		print "    <TD BGCOLOR='" . $row_bg_color . "' ALIGN='RIGHT'>" . 
+			Commify(sprintf "%5.2fM", defined $cur_stats->{total}->{bytes} ? $cur_stats->{total}->{bytes} / 1024 / 1024 : 0) . "\n";
+		
+		# $percent_req is a percentage of item req to total req
+		my $percent_req = $totals->{req} ? 100 * $cur_stats->{total}->{req} / $totals->{req} : 0;
+		$percent_req = 0 if $item eq 'total';
+
+		# $percent_bytes is a percentage of item bytes to total bytes
+		my $percent_bytes = $totals->{bytes} ? 100 * $cur_stats->{total}->{bytes} / $totals->{bytes} : 0;
+		$percent_bytes = 0 if $item eq 'total';
+
+		# Graphs
+		print "    <TD BGCOLOR='" . $row_bg_color . "' ALIGN='RIGHT'><SMALL>" . 
+			("|" x $percent_req) . "</SMALL>\n";
+
+		print "    <TD BGCOLOR='" . $row_bg_color . "' ALIGN='LEFT'><SMALL>" . 
+			("|" x $percent_bytes) . "</SMALL>\n";
+
+		#foreach my $tag (keys %{ $regex_stats->{$regex_text} }) {
+		#	print "    <TD BGCOLOR='" . $row_bg_color . "'><I>$tag</I>\n";
+		#	print "    <TD BGCOLOR='" . $row_bg_color . "'>$regex_stats->{$regex_text}->{$tag}->{req}\n";
+		#	print "    <TD BGCOLOR='" . $row_bg_color . "'>$regex_stats->{$regex_text}->{$tag}->{bytes}\n";
+		#	print "    <TD BGCOLOR='" . $row_bg_color . "'>$regex_stats->{$regex_text}->{$tag}->{elapsed}\n";
+		#}
+	}
+
+	print "</TABLE>\n";
+}
 
 
 sub Show_General_Summary
@@ -1246,8 +1735,8 @@ sub Show_General_Summary
 	print "<TR><TD BGCOLOR='" . COLOR_TABLE_ROW_HEAD . "'><B>Average Speed Increase</B>";
 	
 	# Calculating the kBytes per second for total and direct so we can find out how much faster the caching made it
-	my $total_speed = $stats->{Total}->{elapsed} ? $stats->{Total}->{bytes} / $stats->{Total}->{elapsed} : 0;
-	my $direct_speed = $stats->{Direct}->{elapsed} ? $stats->{Direct}->{bytes} / $stats->{Direct}->{elapsed} : 0;
+	my $total_speed = $stats->{Total}->{elapsed} ? $stats->{Total}->{bytes} / $stats->{Total}->{elapsed} / 1000 : 0;
+	my $direct_speed = $stats->{Direct}->{elapsed} ? $stats->{Direct}->{bytes} / $stats->{Direct}->{elapsed} / 1000 : 0;
 
 	printf    "<TD BGCOLOR='" . COLOR_TABLE_CELL_SPECIAL . "' ALIGN=RIGHT>%s%%\n", Commify(sprintf "%5.2f", 
 		($direct_speed ? 100 * (($total_speed / $direct_speed) - 1) : 0) );
@@ -1307,7 +1796,7 @@ sub Show_Cache_Summary
 		
 		printf "<TD BGCOLOR='" . $bgcolor . "' ALIGN=RIGHT> %2.2f\n", $percent_bytes;
 
-		print "\t<TD BGCOLOR='$bgcolor' ALIGN=LEFT VALIGN=MIDDLE><FONT SIZE=-2>", ("|" x $percent_bytes), "</FONT>\n";
+		print "\t<TD BGCOLOR='$bgcolor' ALIGN=LEFT VALIGN=MIDDLE><SMALL>", ("|" x $percent_bytes), "</SMALL>\n";
 		
 		# change the color for the "special" case 
 		$bgcolor = COLOR_TABLE_CELL_SPECIAL if ($item eq "Direct");
@@ -1317,7 +1806,7 @@ sub Show_Cache_Summary
 		
 		printf "<TD BGCOLOR='" . $bgcolor . "' ALIGN=RIGHT> %2.2f\n", $times_to_direct;
 
-		print "\t<TD BGCOLOR='" . $bgcolor . "' ALIGN=LEFT VALIGN=MIDDLE><FONT SIZE=-2>", ("|" x (25 * $times_to_direct)), "\n";
+		print "\t<TD BGCOLOR='" . $bgcolor . "' ALIGN=LEFT VALIGN=MIDDLE><SMALL>", ("|" x (25 * $times_to_direct)), "</SMALL>\n";
 		
 		# This shows the epoch of the elapsed time.  Only used if I am debugging why one of the above doesn't seem to calculate right
 		#printf "<TD BGCOLOR='" . $bgcolor . "' ALIGN=RIGHT> %s\n", $stats->{$item}->{elapsed};
@@ -1366,7 +1855,7 @@ sub Commify
 {
 	# This takes a number and returns it with comma's like us american's like to see numbers
 	local $_  = shift;
-	return unless $_;
+	return unless defined $_;
 	1 while s/^([-+]?\d+)(\d{3})/$1,$2/;
 	return $_;
 }
@@ -1391,6 +1880,80 @@ sub Timeify
 
 	return "$hour:$minute:$second.$milisecond";
 }
+
+
+sub Get_Ratio
+{
+	my $first = shift;
+	my $second = shift;
+	
+	my $max_smaller = 3.5;
+	my $max_bigger = 999;
+	
+	my $reverse_order = 0;
+	
+	if ($first == 0 && $second == 0) {
+		return "0:0";
+	} elsif ($first == 0) {
+		return "0:1";
+	} elsif ($second == 0) {
+		return "1:0";
+	} elsif ($first == $second) {
+		return "1:1";
+	} elsif ($first > $second) {
+		$reverse_order = 0;
+	} elsif ($second > $first) {
+		$reverse_order = 1;
+	} else {
+		return "ERROR!";
+	}
+	
+	my ($larger, $smaller) = $reverse_order ? ($second, $first) : ($first, $second);
+	
+	# Decide if the numbers have to get smaller, or if they are too different
+	if (($larger / $smaller) > $max_bigger) { # If it is too big, make it the largest ratio it can be
+		$larger = $max_bigger;
+		$smaller = 1;
+	} else { # If the smaller number is bigger than the largest we want it to be, reduce the whole ratio
+		while ($smaller > $max_smaller) {
+			my $approx = (1 / ($smaller / $larger) );
+		
+			my $divisor = $smaller / $approx;
+		
+			if ($divisor <= 1) {
+				$divisor = 1.01;
+			}
+		
+			$larger   /= $divisor;
+			$smaller  /= $divisor;
+		}
+	}
+	
+	# Round the numbers
+	my $larger_ratio  = sprintf("%1.0f", $larger );
+	my $smaller_ratio = sprintf("%1.0f", $smaller );
+
+	# Reduce as much as possible
+	
+	# If the larger number is divisable by the smaller number, reduce both by dividing by the smaller
+	while (!($larger_ratio % $smaller_ratio) && ($smaller_ratio != 1)) {
+		$larger_ratio /= $smaller_ratio;
+		$smaller_ratio /= $smaller_ratio;
+	}
+
+	# if both numbers are divisible by a small list of well known primes, divide them out
+	foreach (2, 3, 5, 7) {
+		while (!($larger_ratio % $_) && !($smaller_ratio % $_)) {
+			$larger_ratio /= $_;
+			$smaller_ratio /= $_;
+		}
+	}
+
+	return $reverse_order ? "$smaller_ratio:$larger_ratio" : "$larger_ratio:$smaller_ratio";
+}
+		
+
+
 
 sub about 
 {
