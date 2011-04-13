@@ -1,4 +1,5 @@
-#!/usr/bin/perl -w
+#!/usr/bin/perl
+# $AFresh1: squeezer2.pl,v 1.4 2011/04/13 21:56:02 andrew Exp $
 #######################################################################
 # squeezer2.pl *** SQUid optimiZER
 #                  Rewrite of squeezer.pl by
@@ -56,7 +57,7 @@
 #
 #######################################################################
 use strict;
-use diagnostics;
+use warnings;
 
 # these are the variables that need to be changed if your configuration is different from mine.
 my $base_dir  = '/var/squid';
