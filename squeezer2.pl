@@ -1,5 +1,5 @@
 #!/usr/bin/perl
-# $AFresh1: squeezer2.pl,v 1.5 2011/04/15 04:12:10 andrew Exp $
+# $AFresh1: squeezer2.pl,v 1.6 2011/08/15 23:59:36 andrew Exp $
 #######################################################################
 # squeezer2.pl *** SQUid optimiZER
 #                  Rewrite of squeezer.pl by
@@ -116,17 +116,16 @@ my $first_time  = time;
 my $last_time   = 0;
 my $total_lines = 0;
 
-my @copy_keys = qw(
-    req           cached_req
-    bytes         cached_bytes
-    elapsed
-);
+my @copy_keys        = qw( req bytes elapsed );
+my @copy_keys_cached = qw( cached_req cached_bytes );
 
 if (SHOW_REGEX_STATS) {
     push @copy_keys, qw( fresh stale modified unmodified );
 }
 
-my @numeric_keys = ( @copy_keys, qw( largest_bytes largest_cached_bytes ) );
+my @numeric_keys = (
+    @copy_keys, @copy_keys_cached, qw( largest_bytes largest_cached_bytes )
+);
 
 my %CACHED;
 
@@ -749,17 +748,17 @@ sub add_stats {
 
     my $s = $stats{$group}{stats}{$key};
 
-    foreach my $k (@copy_keys) {
-        my $sk = $k;
-        next if $sk =~ s/^cached_// && !$stat->{cached_req};
-        $s->{$k} += $stat->{$sk};
-    }
+    $s->{$_} += $stat->{$_} for @copy_keys;
+    $s->{largest_bytes} = $stat->{bytes}
+        if $s->{largest_bytes} < $stat->{bytes};
 
-    foreach my $k (qw( bytes cached_bytes )) {
-        my $sk = $k;
-        next if $sk =~ s/^cached_// && !$stat->{cached_req};
-        $s->{"largest_$k"} = $stat->{$sk}
-            if $s->{"largest_$k"} < $stat->{$sk};
+    if ( $stat->{cached_req} ) {
+        foreach my $k (@copy_keys_cached) {
+            my $sk = substr( $k, 7 );
+            $s->{$k} += $stat->{$sk};
+        }
+        $s->{largest_cached_bytes} = $stat->{bytes}
+            if $s->{largest_cached_bytes} < $stat->{bytes};
     }
 }
 
