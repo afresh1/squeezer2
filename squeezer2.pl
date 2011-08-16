@@ -1,5 +1,5 @@
 #!/usr/bin/perl
-# $AFresh1: squeezer2.pl,v 1.8 2011/08/16 01:00:18 andrew Exp $
+# $AFresh1: squeezer2.pl,v 1.9 2011/08/16 01:01:48 andrew Exp $
 #######################################################################
 # squeezer2.pl *** SQUid optimiZER
 #                  Rewrite of squeezer.pl by
@@ -68,8 +68,8 @@ use warnings;
 # these are the variables that need to be changed if your configuration is
 # different from mine.
 
-our $VERSION = '0.6';
-my $conf_file = './squid.conf';
+our $VERSION = '0.7';
+my $conf_file = '/etc/squid/squid.conf';
 my $conf      = Read_Conf($conf_file);
 my $log_path  = $conf->{log} || '/var/squid/logs/access.log';
 
@@ -771,7 +771,8 @@ sub parse_line {
             time elapsed remote_host status bytes
             method url rfc931 peer_status mime
             )
-        } = split ' ', $_[0];
+        }
+        = split ' ', $_[0];
 
     return if index $stat{status}, 'TCP_';
 
