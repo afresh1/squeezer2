@@ -1,5 +1,5 @@
 #!/usr/bin/perl
-# $AFresh1: squeezer2.pl,v 1.6 2011/08/15 23:59:36 andrew Exp $
+# $AFresh1: squeezer2.pl,v 1.7 2011/08/16 00:53:18 andrew Exp $
 #######################################################################
 # squeezer2.pl *** SQUid optimiZER
 #                  Rewrite of squeezer.pl by
@@ -69,7 +69,7 @@ use warnings;
 # different from mine.
 
 our $VERSION = '0.6';
-my $conf_file = '/etc/squid/squid.conf';
+my $conf_file = './squid.conf';
 my $conf      = Read_Conf($conf_file);
 my $log_path  = $conf->{log} || '/var/squid/logs/access.log';
 
@@ -763,19 +763,15 @@ sub add_stats {
 }
 
 sub parse_line {
-    my @l = split ' ', $_[0];
-    warn "Invalid line $ARGV: line $.\n" and return if @l != 10;
-
-    return if $l[3] !~ /^TCP_/;
-
     my %stat = ( req => 1, cached_req => 0 );
     @stat{
         qw(
             time elapsed remote_host status bytes
             method url rfc931 peer_status mime
             )
-        }
-        = @l;
+        } = split ' ', $_[0];
+
+    return if index $stat{status}, 'TCP_';
 
     @stat{qw( hit   code )}   = split '/', $stat{status};
     @stat{qw( fetch server )} = split '/', $stat{peer_status};
