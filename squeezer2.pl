@@ -1,5 +1,5 @@
 #!/usr/bin/perl
-# $AFresh1: squeezer2.pl,v 1.7 2011/08/16 00:53:18 andrew Exp $
+# $AFresh1: squeezer2.pl,v 1.8 2011/08/16 01:00:18 andrew Exp $
 #######################################################################
 # squeezer2.pl *** SQUid optimiZER
 #                  Rewrite of squeezer.pl by
@@ -725,10 +725,13 @@ sub Read_Conf {
 
 sub init {
     my ( $group, $key ) = @_;
-    return if $stats{$group}{stats}{$key};
+    return $stats{$group}{stats}{$key} if $stats{$group}{stats}{$key};
 
-    $stats{$group}{stats}{$key} = {};
-    $stats{$group}{stats}{$key}{$_} = 0 for @numeric_keys;
+    my %s;
+    $s{$_} = 0 for @numeric_keys;
+    $stats{$group}{stats}{$key} = \%s;
+
+    return \%s;
 }
 
 sub set_opt {
@@ -744,9 +747,8 @@ sub set_item_opt {
 sub add_stats {
     my ( $group, $key, $stat ) = @_;
     return unless $group && $key;
-    init( $group, $key ) if !$stats{$group}{stats}{$key};
 
-    my $s = $stats{$group}{stats}{$key};
+    my $s = $stats{$group}{stats}{$key} || init( $group, $key );
 
     $s->{$_} += $stat->{$_} for @copy_keys;
     $s->{largest_bytes} = $stat->{bytes}
