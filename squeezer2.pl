@@ -1,5 +1,5 @@
 #!/usr/bin/perl
-# $AFresh1: squeezer2.pl,v 1.9 2011/08/16 01:01:48 andrew Exp $
+# $AFresh1: squeezer2.pl,v 1.10 2011/08/16 01:48:00 andrew Exp $
 #######################################################################
 # squeezer2.pl *** SQUid optimiZER
 #                  Rewrite of squeezer.pl by
@@ -1084,24 +1084,24 @@ EOL
     $output .= "\t</tr><tr class='even'>\n";
     $output .= sprintf "\t\t<th>Cached Reqs/Hour</th><td>%s</td>\n",
         Commify( sprintf "%5.2f",
-        $hours ? $Total->{cached_req} / 1024 / $hours : 0 );
+        $hours ? $Total->{cached_req} / $hours : 0 );
 
     $output .= "\t</tr><tr class='odd'>\n";
     $output .= sprintf "\t\t<th>Direct Reqs/Hour</th><td>%s</td>\n",
         Commify( sprintf "%5.2f",
-        $hours ? $direct->{req} / 1024 / $hours : 0 );
+        $hours ? $direct->{req} / $hours : 0 );
 
     $output .= "\t</tr><tr class='even total'>\n";
     $output .= sprintf "\t\t<th>Total Reqs/Hour</th><td>%s</td>\n",
         Commify( sprintf "%5.2f",
-        $hours ? $Total->{req} / 1024 / $hours : 0 );
+        $hours ? $Total->{req} / $hours : 0 );
 
     $output .= "\t</tr><tr class='special'>\n";
     $output .= sprintf "\t\t<th colspan=2>Average Object Size</th>\n";
 
     $output .= "\t</tr><tr class='even'>\n";
     $output
-        .= sprintf "\t\t<th>Average Cached Object Size</th><td>%s</td>\n",
+        .= sprintf "\t\t<th>Average Cached Object Size</th><td>%s kbytes</td>\n",
         Commify(
         sprintf "%5.2f",
         $Total->{cached_req}
@@ -1111,12 +1111,12 @@ EOL
 
     $output .= "\t</tr><tr class='odd'>\n";
     $output
-        .= sprintf "\t\t<th>Average Direct Object Size</th><td>%s</td>\n",
+        .= sprintf "\t\t<th>Average Direct Object Size</th><td>%s kbytes</td>\n",
         Commify( sprintf "%5.2f",
         $direct->{req} ? $direct->{bytes} / 1024 / $direct->{req} : 0 );
 
     $output .= "\t</tr><tr class='even total'>\n";
-    $output .= sprintf "\t\t<th>Average Object Size</th><td>%s</td>\n",
+    $output .= sprintf "\t\t<th>Average Object Size</th><td>%s kbytes</td>\n",
         Commify( sprintf "%5.2f",
         $Total->{req} ? $Total->{bytes} / 1024 / $Total->{req} : 0 );
 
@@ -1124,18 +1124,18 @@ EOL
     $output .= sprintf "\t\t<th colspan=2>Other</th>\n";
 
     $output .= "\t</tr><tr class='even total'>\n";
-    $output .= sprintf "\t\t<th>Hit Rate</th><td>%s</td>\n",
+    $output .= sprintf "\t\t<th>Hit Rate</th><td>%s%%</td>\n",
         Commify( sprintf "%5.2f",
         $Total->{req} ? 100 * $Total->{cached_req} / $Total->{req} : 0 );
 
     $output .= "\t</tr><tr class='odd total'>\n";
     $output .= sprintf "\t\t<th>Bandwidth Savings Total</th>"
-        . "<td class='special'>%s</td>\n",
+        . "<td class='special'>%s kbytes</td>\n",
         Commify( sprintf "%5.2f", $Total->{cached_bytes} / 1024 );
 
     $output .= "\t</tr><tr class='even total'>\n";
     $output
-        .= sprintf "\t\t<th>Bandwidth Savings Percent</th><td>%s</td>\n",
+        .= sprintf "\t\t<th>Bandwidth Savings Percent</th><td>%s %%</td>\n",
         Commify(
         sprintf "%5.2f",
         $Total->{bytes} ? 100 * $Total->{cached_bytes} / $Total->{bytes} : 0
@@ -1148,7 +1148,7 @@ EOL
 
     $output .= "\t</tr><tr class='odd total'>\n";
     $output .= sprintf "\t\t<th>Average Speed Increase</th>"
-        . "<td class='special'>%s</td>\n",
+        . "<td class='special'>%s %%</td>\n",
         Commify( sprintf "%5.2f",
         $direct_speed
         ? 100 * ( ( $total_speed / $direct_speed ) - 1 )
