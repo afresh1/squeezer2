@@ -1,5 +1,4 @@
 #!/usr/bin/perl
-# $AFresh1: squeezer2.pl,v 1.10 2011/08/16 01:48:00 andrew Exp $
 #######################################################################
 # squeezer2.pl *** SQUid optimiZER
 #                  Rewrite of squeezer.pl by
@@ -68,7 +67,7 @@ use warnings;
 # these are the variables that need to be changed if your configuration is
 # different from mine.
 
-our $VERSION = '0.7';
+our $VERSION = '0.8';
 my $conf_file = '/etc/squid/squid.conf';
 my $conf      = Read_Conf($conf_file);
 my $log_path  = $conf->{log} || '/var/squid/logs/access.log';
@@ -849,7 +848,7 @@ td.special { background: lightblue; }
 .graph {
     font-size: xx-small;
     font-weight: bold;
-    letter-spacing: -0.25em;
+    letter-spacing: -0.12em;
     text-align: left;
 }
 </style>
